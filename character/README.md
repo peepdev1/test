@@ -1,14 +1,17 @@
-# Red Bean character (rigged) + first-person hands + glove hands
+# Red Bean character (rigged) + first-person hands + rigged glove hands
 
 Procedurally generated, fully rigged 3D model of the red bean mascot
 (full-body reference sheet + first-person hand poses A/B/C), plus the two
-glove hands from the hand reference sheet as separate static objects.
+glove hands from the hand reference sheet as separate rigged objects with
+their own finger bones.
 
 ![turnaround](renders/turnaround.png)
 ![rig](renders/rig.png)
 ![poses](renders/poses.png)
 ![first person](renders/fp_sheet.png)
 ![hands](renders/hands_sheet.png)
+![hands rig](renders/hands_rig.png)
+![hand poses](renders/hands_poses.png)
 
 ## Files
 
@@ -27,10 +30,13 @@ glove hands from the hand reference sheet as separate static objects.
 | `renders/rig.png` | bones drawn through a transparent body + hand close-up |
 | `renders/poses.png` | TPose / Idle / Fist / Wave |
 | `renders/fp_sheet.png` | first-person A. idle, B. hold item, C. pull / drag (from `FP_Camera`) |
-| `generate_hands.py` | builds the two glove hands of the hand reference sheet |
-| `hands.blend` | `Hand_R` and `Hand_L`: two separate static meshes (cuff + glove, ~28k verts each, one material `Hand_Red`), no rig |
-| `hands.glb` / `hands.fbx` / `hands.obj` + `.mtl` | the same two hands |
+| `generate_hands.py` | builds and rigs the two glove hands of the hand reference sheet |
+| `hands.blend` | `Hand_R` + `Hand_R_Rig`, `Hand_L` + `Hand_L_Rig`: two separate skinned meshes (cuff + glove, ~29k verts each, one material `Hand_Red`) with a 14-bone armature each; actions `Rest` `Open` `Fist` `Point` per hand |
+| `hands.glb` / `hands.fbx` | the same two hands with skins + the 8 actions (`Rest.R` … `Point.L`) |
+| `hands.obj` + `.mtl` | the two hands as static meshes |
 | `renders/hands_sheet.png` | front / side / back / inner / top / bottom of each hand, same layout as the reference |
+| `renders/hands_rig.png` | the 14 bones drawn through each transparent hand |
+| `renders/hands_poses.png` | Rest / Open / Fist / Point per hand, back and palm view |
 
 Character is 2.0 m tall, Z-up, faces -Y (+X = the character's own left),
 rest pose = T-pose with open hands, palms forward, thumbs up.
@@ -47,11 +53,31 @@ file the hands sit at X = -0.35 (right) and X = +0.35 (left). Each hand is
 as the 2.0 m character.
 
 Each mesh is one object of two shells: the bevelled cylinder cuff and the
-glove (palm + 3 fingers + thumb), the latter fused from overlapping
+glove (palm + 3 separate fingers + thumb), the latter fused from overlapping
 primitives with a voxel remesh so it is a single closed, even quad surface.
-All dimensions are named constants at the top of `generate_hands.py`
-(palm ellipsoids, finger radii / segment lengths / spread / curl, thumb
-angles), so the pose and proportions can be tweaked and regenerated.
+The fingers are spaced so there is a clear gap between them. All dimensions
+are named constants at the top of `generate_hands.py` (palm ellipsoids,
+finger radii / segment lengths / spread / curl, thumb angles), so the pose
+and proportions can be tweaked and regenerated.
+
+Each hand has its own armature (14 bones):
+
+```
+Wrist ─ Hand ─┬─ Index.01 ─ Index.02 ─ Index.03
+              ├─ Middle.01 ─ Middle.02 ─ Middle.03
+              ├─ Ring.01 ─ Ring.02 ─ Ring.03
+              └─ Thumb.01 ─ Thumb.02 ─ Thumb.03
+```
+
+The object origin / `Wrist` bone is the seam between cuff and glove, so the
+hand can be parented to a wrist of any rig. Every vertex follows the bone
+chain it is closest to (`beanlib.nearest_chain_weights`), blended around the
+joints, so each finger bends on its own. Finger bones have local Z toward
+the thumb: curl = rotate about local Z (+ on `Hand_R`, - on `Hand_L`),
+spread = rotate about local X. Thumb bones have local Z = palm normal: flex
+= rotate about local X (same sign on both hands), sweep toward the fingers
+= rotate about local Z. `hand_pose()` in `generate_hands.py` builds a whole
+hand pose from a few angles; the four shipped actions are examples.
 
 ## Rig
 

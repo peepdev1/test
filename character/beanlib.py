@@ -525,34 +525,67 @@ def build_armature(name, bones, col, groups=None):
     return arm
 
 
-def chain_weights(ob, chain, blend):
-    """Assign vertex-group weights along a polyline of bones.
-    chain = [(bone_name, head, tail), ...] in world space, consecutive."""
-    segs = [(n, Vector(p0), Vector(p1)) for n, p0, p1 in chain]
-    lens = [(p1 - p0).length for _, p0, p1 in segs]
-    cum = [0.0]
-    for L in lens:
-        cum.append(cum[-1] + L)
-    groups = {}
-    for n, _, _ in segs:
-        groups[n] = ob.vertex_groups.get(n) or ob.vertex_groups.new(name=n)
-    mw = ob.matrix_world
-    n_seg = len(segs)
-    for v in ob.data.vertices:
-        p = mw @ v.co
+class _Chain:
+    """A polyline of bones with cached lengths, for weight lookups."""
+
+    def __init__(self, chain, blend):
+        self.segs = [(n, Vector(p0), Vector(p1)) for n, p0, p1 in chain]
+        self.lens = [(p1 - p0).length for _, p0, p1 in self.segs]
+        self.cum = [0.0]
+        for L in self.lens:
+            self.cum.append(self.cum[-1] + L)
+        self.blend = blend
+
+    def locate(self, p):
+        """(distance to the polyline, arclength of the nearest point)."""
         best = None
-        for i, (n, p0, p1) in enumerate(segs):
+        for i, (_, p0, p1) in enumerate(self.segs):
             d = p1 - p0
             t = min(1.0, max(0.0, (p - p0).dot(d) / d.length_squared))
             dist = (p - (p0 + d * t)).length
             if best is None or dist < best[0]:
-                best = (dist, cum[i] + t * lens[i])
-        s = best[1]
-        g = [1.0] + [smoothstep((s - (cum[k] - blend)) / (2.0 * blend)) for k in range(1, n_seg)] + [0.0]
-        for i, (n, _, _) in enumerate(segs):
-            w = g[i] - g[i + 1]
-            if w > 1e-4:
-                groups[n].add([v.index], w, "REPLACE")
+                best = (dist, self.cum[i] + t * self.lens[i])
+        return best
+
+    def weights(self, s):
+        """[(bone, weight)] for arclength s: smoothstep blend around every joint."""
+        n = len(self.segs)
+        b = self.blend
+        g = [1.0] + [smoothstep((s - (self.cum[k] - b)) / (2.0 * b)) for k in range(1, n)] + [0.0]
+        return [(self.segs[i][0], g[i] - g[i + 1]) for i in range(n) if g[i] - g[i + 1] > 1e-4]
+
+
+def _groups_for(ob, chains):
+    groups = {}
+    for c in chains:
+        for n, _, _ in c.segs:
+            if n not in groups:
+                groups[n] = ob.vertex_groups.get(n) or ob.vertex_groups.new(name=n)
+    return groups
+
+
+def chain_weights(ob, chain, blend):
+    """Assign vertex-group weights along a polyline of bones.
+    chain = [(bone_name, head, tail), ...] in world space, consecutive."""
+    nearest_chain_weights(ob, [(chain, blend)])
+
+
+def nearest_chain_weights(ob, chains):
+    """Weights for a mesh that several bone chains run through (e.g. a whole
+    hand): every vertex follows the chain it is closest to, blended along
+    that chain. chains = [(chain, blend), ...]."""
+    cs = [_Chain(chain, blend) for chain, blend in chains]
+    groups = _groups_for(ob, cs)
+    mw = ob.matrix_world
+    for v in ob.data.vertices:
+        p = mw @ v.co
+        best = None
+        for c in cs:
+            dist, s = c.locate(p)
+            if best is None or dist < best[0]:
+                best = (dist, s, c)
+        for n, w in best[2].weights(best[1]):
+            groups[n].add([v.index], w, "REPLACE")
 
 
 def skin_and_join(name, objs, chains, arm, col):
@@ -620,6 +653,20 @@ def make_action(arm, name, rots, frames=(1, 24)):
             pb.keyframe_insert("rotation_euler", frame=f, group=pb.name)
     act.frame_range = (frames[0], frames[-1])
     return act
+
+
+def stash_actions(arm, actions):
+    """Put every action on its own (muted) NLA track. The glTF exporter only
+    exports *all* actions of a file when it holds a single armature; with
+    several armatures it exports the active action plus NLA strips."""
+    ad = arm.animation_data
+    for act in actions:
+        if any(t.name == act.name for t in ad.nla_tracks):
+            continue
+        track = ad.nla_tracks.new()
+        track.name = act.name
+        track.mute = True
+        track.strips.new(act.name, int(act.frame_range[0]), act)
 
 
 def set_action(arm, act):
