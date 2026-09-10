@@ -45,8 +45,8 @@ ARM_X0 = 0.30                    # starts inside the body
 ARM_X1 = 0.96                    # wrist
 
 LEG_X = 0.22
-LEG_R = 0.115
-FOOT_RADII = (0.135, 0.20, 0.165)   # shoe is as thick as the leg, rounded
+LEG_R = 0.105
+FOOT_RADII = (0.15, 0.21, 0.115)    # plump slipper: half width, half length, half height
 
 RED = (0.85, 0.015, 0.012, 1.0)
 WHITE = (1.0, 1.0, 1.0, 1.0)
@@ -216,26 +216,55 @@ def build(scene):
         finish(thumb, f"Thumb.{side}", mat_red, root, col)
 
     # ---------------- legs + feet ----------------------------------------
+    # Leg: a tube that runs down from inside the body, narrows at the ankle
+    # and curves gently forward into the shoe. Shoe: a plump rounded slipper,
+    # wider and thicker than the leg, heel tucked under the leg, toe rounded
+    # and sloping down, flat sole on the ground.
     for side, sgn in (("L", 1.0), ("R", -1.0)):
-        bpy.ops.mesh.primitive_cylinder_add(
-            vertices=48, radius=LEG_R, depth=0.50, location=(sgn * LEG_X, 0.0, 0.35)
-        )
+        lx = sgn * LEG_X
+        curve = bpy.data.curves.new(f"Leg.{side}", "CURVE")
+        curve.dimensions = "3D"
+        curve.bevel_depth = LEG_R
+        curve.bevel_resolution = 10
+        curve.resolution_u = 24
+        curve.use_fill_caps = True
+        spline = curve.splines.new("BEZIER")
+        pts = [  # (x, y, z, radius multiplier)
+            (lx, 0.03, 0.60, 1.00),          # hidden inside the body
+            (lx, 0.03, 0.42, 1.00),          # hip
+            (lx, 0.01, 0.22, 0.85),          # ankle (thinnest)
+            (lx, -0.05, 0.09, 0.90),         # dives into the shoe
+        ]
+        spline.bezier_points.add(len(pts) - 1)
+        for bp, (x, y, z, r) in zip(spline.bezier_points, pts):
+            bp.co = (x, y, z)
+            bp.radius = r
+            bp.handle_left_type = bp.handle_right_type = "AUTO"
+        leg = bpy.data.objects.new(f"Leg.{side}", curve)
+        col.objects.link(leg)
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.context.view_layer.objects.active = leg
+        leg.select_set(True)
+        bpy.ops.object.convert(target="MESH")
         finish(bpy.context.active_object, f"Leg.{side}", mat_red, root, col)
 
-        foot = uv_sphere(1.0, (0, 0, 0), segments=32, rings=16)
+        foot = uv_sphere(1.0, (0, 0, 0), segments=48, rings=24)
         rx, ry, rz = FOOT_RADII
         for v in foot.data.vertices:
             x, y, z = v.co
-            # egg-shaped shoe: rounder toe at the front, flat sole
-            y_scaled = y * ry * (1.0 if y < 0 else 0.6)
-            v.co = (x * rx, y_scaled, max(z * rz, -0.005))
+            if y < 0:                                     # toe half: full length
+                yy = y * ry
+                z = z * (1.0 - 0.22 * (-y))               # top slopes down to the toe
+            else:                                         # heel half: tucked under the leg
+                yy = y * ry * 0.55
+            v.co = (x * rx, yy, max(z * rz, -0.02))       # flat sole
         foot.data.update()
-        foot.location = (sgn * LEG_X, -0.05, 0.005)          # sole sits on the ground (z = 0)
+        foot.location = (lx, -0.11, 0.095)                # sole rests on z = 0
         finish(foot, f"Foot.{side}", mat_red, root, col)
 
     # subdivision keeps the primitive shapes soft under close-ups
     for ob in col.objects:
-        if ob.type == "MESH" and ob.name.startswith(("Hand", "Finger", "Thumb", "Foot", "Shoulder")):
+        if ob.type == "MESH" and ob.name.startswith(("Hand", "Finger", "Thumb", "Shoulder")):
             mod = ob.modifiers.new("Subdivision", "SUBSURF")
             mod.levels = 1
             mod.render_levels = 2
