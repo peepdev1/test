@@ -22,17 +22,17 @@ from mathutils import Vector
 # --------------------------------------------------------------------------
 PX = 2.0 / 475.0                 # total character height 475 px == 2.0 m
 
-BODY_BOTTOM_Z = 0.30             # body sits on top of the stubby legs
+BODY_BOTTOM_Z = 0.36             # body sits on top of the stubby legs
 BODY_HEIGHT = 390 * PX           # ~1.64 m
 BODY_RX = 0.42                   # half width (front view)
 BODY_RY = 0.38                   # half depth (side view, slightly slimmer)
 CAP_R = 0.40                     # radius of the hemispherical caps
 TAPER = 0.16                     # top is ~84 % as wide as the bottom
 
-EYE_R = 0.21
+EYE_R = 0.175
 EYE_Z = 2.0 - 80 * PX            # ~1.66 m
-EYE_X = 0.215
-PUPIL_R = 0.072
+EYE_X = 0.19
+PUPIL_R = 0.062
 
 MOUTH_Z = 2.0 - 147 * PX         # ~1.38 m
 MOUTH_HALF_W = 0.15
@@ -46,7 +46,7 @@ ARM_X1 = 0.96                    # wrist
 
 LEG_X = 0.22
 LEG_R = 0.115
-FOOT_RADII = (0.135, 0.21, 0.125)
+FOOT_RADII = (0.135, 0.20, 0.165)   # shoe is as thick as the leg, rounded
 
 RED = (0.85, 0.015, 0.012, 1.0)
 WHITE = (1.0, 1.0, 1.0, 1.0)
@@ -148,7 +148,7 @@ def build(scene):
             ("L", +EYE_X, EYE_R * 0.98, EYE_Z + 0.006)]
     for side, ex, er, ez in eyes:
         ys = surface_y(ex, ez)
-        ey = ys - er * 0.22                                  # ~3/4 of the eye sticks out
+        ey = ys - er * 0.30                                  # ~2/3 of the eye sticks out
         eye = uv_sphere(er, (ex, ey, ez), segments=48, rings=24)
         finish(eye, f"Eye.{side}", mat_white, root, col)
 
@@ -218,7 +218,7 @@ def build(scene):
     # ---------------- legs + feet ----------------------------------------
     for side, sgn in (("L", 1.0), ("R", -1.0)):
         bpy.ops.mesh.primitive_cylinder_add(
-            vertices=48, radius=LEG_R, depth=0.50, location=(sgn * LEG_X, 0.0, 0.32)
+            vertices=48, radius=LEG_R, depth=0.50, location=(sgn * LEG_X, 0.0, 0.35)
         )
         finish(bpy.context.active_object, f"Leg.{side}", mat_red, root, col)
 
@@ -227,11 +227,10 @@ def build(scene):
         for v in foot.data.vertices:
             x, y, z = v.co
             # egg-shaped shoe: rounder toe at the front, flat sole
-            y_scaled = y * ry * (1.0 if y < 0 else 0.55)
+            y_scaled = y * ry * (1.0 if y < 0 else 0.6)
             v.co = (x * rx, y_scaled, max(z * rz, -0.005))
         foot.data.update()
-        foot.location = (sgn * LEG_X, -0.07, 0.005)          # sole sits on the ground (z = 0)
-        foot.rotation_euler = (0.0, 0.0, -sgn * math.radians(8))   # toes splay slightly outward
+        foot.location = (sgn * LEG_X, -0.05, 0.005)          # sole sits on the ground (z = 0)
         finish(foot, f"Foot.{side}", mat_red, root, col)
 
     # subdivision keeps the primitive shapes soft under close-ups
