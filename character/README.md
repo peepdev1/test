@@ -1,12 +1,14 @@
-# Red Bean character (rigged) + first-person hands
+# Red Bean character (rigged) + first-person hands + glove hands
 
 Procedurally generated, fully rigged 3D model of the red bean mascot
-(full-body reference sheet + first-person hand poses A/B/C).
+(full-body reference sheet + first-person hand poses A/B/C), plus the two
+glove hands from the hand reference sheet as separate static objects.
 
 ![turnaround](renders/turnaround.png)
 ![rig](renders/rig.png)
 ![poses](renders/poses.png)
 ![first person](renders/fp_sheet.png)
+![hands](renders/hands_sheet.png)
 
 ## Files
 
@@ -25,9 +27,31 @@ Procedurally generated, fully rigged 3D model of the red bean mascot
 | `renders/rig.png` | bones drawn through a transparent body + hand close-up |
 | `renders/poses.png` | TPose / Idle / Fist / Wave |
 | `renders/fp_sheet.png` | first-person A. idle, B. hold item, C. pull / drag (from `FP_Camera`) |
+| `generate_hands.py` | builds the two glove hands of the hand reference sheet |
+| `hands.blend` | `Hand_R` and `Hand_L`: two separate static meshes (cuff + glove, ~28k verts each, one material `Hand_Red`), no rig |
+| `hands.glb` / `hands.fbx` / `hands.obj` + `.mtl` | the same two hands |
+| `renders/hands_sheet.png` | front / side / back / inner / top / bottom of each hand, same layout as the reference |
 
 Character is 2.0 m tall, Z-up, faces -Y (+X = the character's own left),
 rest pose = T-pose with open hands, palms forward, thumbs up.
+
+## Glove hands (`hands.blend`)
+
+`Hand_R` and `Hand_L` are separate objects, exact mirrors of each other,
+built in the rest pose of a character standing with the arms down: cuff on
+top, fingers pointing down (-Z), back of the hand facing the viewer (-Y),
+palm facing +Y, thumb toward the body (+X on `Hand_R`, -X on `Hand_L`).
+The object origin is the wrist (centre of the cuff / glove seam); in the
+file the hands sit at X = -0.35 (right) and X = +0.35 (left). Each hand is
+0.34 m tall (cuff top to finger tips) and 0.24 m wide, i.e. the same scale
+as the 2.0 m character.
+
+Each mesh is one object of two shells: the bevelled cylinder cuff and the
+glove (palm + 3 fingers + thumb), the latter fused from overlapping
+primitives with a voxel remesh so it is a single closed, even quad surface.
+All dimensions are named constants at the top of `generate_hands.py`
+(palm ellipsoids, finger radii / segment lengths / spread / curl, thumb
+angles), so the pose and proportions can be tweaked and regenerated.
 
 ## Rig
 
@@ -72,6 +96,7 @@ weighting.
 pip install bpy pillow            # Blender 4.2 as a Python module
 python3 character/generate_character.py character
 python3 character/generate_fp_hands.py character
+python3 character/generate_hands.py character
 ```
 
 Add `--no-render` to skip the Cycles renders. The scripts also run inside
