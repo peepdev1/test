@@ -230,7 +230,7 @@ def build(scene):
             y_scaled = y * ry * (1.0 if y < 0 else 0.55)
             v.co = (x * rx, y_scaled, max(z * rz, -0.005))
         foot.data.update()
-        foot.location = (sgn * LEG_X, -0.07, 0.12)
+        foot.location = (sgn * LEG_X, -0.07, 0.005)          # sole sits on the ground (z = 0)
         foot.rotation_euler = (0.0, 0.0, -sgn * math.radians(8))   # toes splay slightly outward
         finish(foot, f"Foot.{side}", mat_red, root, col)
 
